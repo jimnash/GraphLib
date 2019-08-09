@@ -1,0 +1,2858 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections;
+using System.ComponentModel;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Windows.Forms;
+using FitMathsClass;
+
+namespace GraphLib
+{
+    public partial class GraphPanel : UserControl
+    {
+        private bool endUpThread = false;
+        private Thread liveUpdate;
+        public GrTabPanel GT;
+        private Grid GR;
+        public MouseOps GMO;
+        public GraphData GPG;
+
+        private bool HLTab = true;
+        private Color bTabColour;
+        private int theBaseID = 1;
+        private int theToolID = 1;
+        private double CYscale = 1.0;
+        private Point[] scrPts = new Point[5000];
+        private FitMaths.DPoint[] dispPts = new FitMaths.DPoint[5000];
+        private GTypes.EP[] epdata = new GTypes.EP[256];
+        private int epcnt = 0;
+        private FitMaths.DPoint[] memDpoints = new FitMaths.DPoint[1000000];
+        private double lastMaxd = 1.0;
+        private double lastMind = 1.0;
+        public int lastXYVx = 0;
+        public int lastXYVy = 0;
+        public GTypes.PanelControl thelastpan;
+
+
+        public Options Gopt;
+        public Params GParams;
+
+        public GraphPanel()
+        {
+            InitializeComponent();
+            GParams = new Params(this);
+            GMO = new MouseOps();
+           
+            GParams.GT = new GrTabPanel();
+            GParams.GB = new GrBoundary();
+            
+            GParams.SL = new SaveLayout(this);
+            GParams.CM = new GPContextMenu(this);
+            GParams.GT.setup(this);
+            GParams.GB.setup(this);
+
+            Gopt = new Options(this);
+            GR = new Grid(this);
+            GMO.setup(this);
+            GPG = new GraphData(this);
+
+            GT = GParams.GT;
+
+            liveUpdate = new Thread(new ThreadStart(liveUpdateThread));
+
+            GParams.LUpts = new FitMaths.DPoint[1024];
+            GParams.SerialNumber = "N/K";
+
+            GrPan.Enabled = false;
+            GrPan.Visible = false;
+            GrPan.Dispose();
+
+            GT.Init(TabPage1, GParams.externalGraphList);
+
+            ExpandYButtonTop.Visible = false;
+            ContractYButtonTop.Visible = false;
+            ExpandYButtonBottom.Visible = false;
+            ContractYButtonBottom.Visible = false;
+            ExpandButton.Visible = false;
+            ContractButton.Visible = false;
+            ResetButton.Visible = false;
+
+            GParams.AllReadyToGo = true;
+            setSize(this.Width, this.Height);
+            SNText.Left = 157;
+
+        }
+
+
+        private void GraphPanel_Load(object sender, EventArgs e)
+        {
+            this.DoubleBuffered = true;
+            bTabColour = TabPage1.BackColor;
+            TabControl1.DrawMode = TabDrawMode.OwnerDrawFixed;
+        }
+
+
+        public void initEvents()
+        {
+            SaveAsImage.Click += new EventHandler(Gopt.SaveAsImage_Click);
+            ToolSaveButton.Click += new EventHandler(Gopt.ToolSaveButton_Click);
+            TooOpenButton.Click += new EventHandler(Gopt.TooOpenButton_Click);
+            ToolPrintButton.Click += new EventHandler(Gopt.ToolPrintButton_Click);
+            ToolNewTabButton.Click += new EventHandler(Gopt.ToolNewTabButton_Click);
+            ShowCrosshairsToolStripMenuItem.Click += new EventHandler(Gopt.ShowCrosshairsToolStripMenuItem_Click);
+            DisplayValuesToolStripMenuItem.Click += new EventHandler(Gopt.DisplayValuesToolStripMenuItem_Click);
+            UseFollowingCursoToolStripMenuItem.Click += new EventHandler(Gopt.UseFollowingCursoToolStripMenuItem_Click);
+            ShowGridToolStripMenuItem.Click += new EventHandler(Gopt.ShowGridToolStripMenuItem_Click);
+            ShowXAxisToolStripMenuItem.Click += new EventHandler(Gopt.ShowXAxisToolStripMenuItem_Click);
+            ShowYAxisToolStripMenuItem.Click += new EventHandler(Gopt.ShowYAxisToolStripMenuItem_Click);
+            ShowYAxisLegendToolStripMenuItem.Click += new EventHandler(Gopt.ShowYAxisLegendToolStripMenuItem_Click);
+            ShowXAxisLegendToolStripMenuItem.Click += new EventHandler(Gopt.ShowXAxisLegendToolStripMenuItem_Click);
+            AxisConfigurationToolStripMenuItem.Click += new EventHandler(Gopt.AxisConfigurationToolStripMenuItem_Click);
+            MoveImportedGraphToolStripMenuItem.Click += new EventHandler(Gopt.MoveImportedGraphToolStripMenuItem_Click);
+            SetPassCountTo1ToolStripMenuItem.Click += new EventHandler(Gopt.SetPassCountTo1ToolStripMenuItem_Click);
+            SetPassCountTo3ToolStripMenuItem.Click += new EventHandler(Gopt.SetPassCountTo3ToolStripMenuItem_Click);
+            SetPassCountTo5ToolStripMenuItem.Click += new EventHandler(Gopt.SetPassCountTo5ToolStripMenuItem_Click);
+            ClearGraphToolStripMenuItem.Click += new EventHandler(Gopt.ClearGraphToolStripMenuItem_Click);
+            AddPanelToolStripMenuItem.Click += new EventHandler(Gopt.AddPanelToolStripMenuItem_Click);
+            RemovePanelItem.Click += new EventHandler(Gopt.RemovePanelItem_Click);
+            ShowDifferenceMarkersToolStripMenuItem.Click += new EventHandler(Gopt.ShowDifferenceMarkersToolStripMenuItem_Click);
+            ShowGraphTooltipToolStripMenuItem.Click += new EventHandler(Gopt.ShowGraphTooltipToolStripMenuItem_Click);
+            ShowBoundaryValuesToolStripMenuItem.Click += new EventHandler(Gopt.ShowBoundaryValuesToolStripMenuItem_Click);
+            ResetOthersToolStripMenuItem.Click += new EventHandler(Gopt.ResetOthersToolStripMenuItem_Click);
+            X2ToolStripMenuItem.Click += new EventHandler(Gopt.X2ToolStripMenuItem_Click);
+            X3ToolStripMenuItem.Click += new EventHandler(Gopt.X3ToolStripMenuItem_Click);
+            X4ToolStripMenuItem.Click += new EventHandler(Gopt.X4ToolStripMenuItem_Click);
+            X5ToolStripMenuItem.Click += new EventHandler(Gopt.X5ToolStripMenuItem_Click);
+            X6ToolStripMenuItem.Click += new EventHandler(Gopt.X6ToolStripMenuItem_Click);
+            X7ToolStripMenuItem.Click += new EventHandler(Gopt.X7ToolStripMenuItem_Click);
+            X8ToolStripMenuItem.Click += new EventHandler(Gopt.X8ToolStripMenuItem_Click);
+            X9ToolStripMenuItem.Click += new EventHandler(Gopt.X9ToolStripMenuItem_Click);
+            RemoveAllImportedFileGraphsToolStripMenuItem.Click += new EventHandler(Gopt.RemoveAllImportedFileGraphsToolStripMenuItem_Click);
+            UseAlternateZeroYAxisToolStripMenuItem.Click += new EventHandler(Gopt.UseAlternateZeroYAxisToolStripMenuItem_Click);
+            VideoPlaybackToolStripMenuItem.Click += new EventHandler(Gopt.VideoPlaybackToolStripMenuItem_Click);
+            NormalToolStripMenuItem.Click += new EventHandler(Gopt.NormalToolStripMenuItem_Click);
+            X2ToolStripMenuItem1.Click += new EventHandler(Gopt.X2ToolStripMenuItem1_Click);
+            X3ToolStripMenuItem1.Click += new EventHandler(Gopt.X3ToolStripMenuItem1_Click);
+            X5ToolStripMenuItem1.Click += new EventHandler(Gopt.X5ToolStripMenuItem1_Click);
+            X10ToolStripMenuItem.Click += new EventHandler(Gopt.X10ToolStripMenuItem_Click);
+
+            TabControl1.DrawItem += new DrawItemEventHandler(TabControl1_DrawItem);
+            TabControl1.SelectedIndexChanged +=new EventHandler(TabControl1_SelectedIndexChanged);
+            PrintDocument1.PrintPage +=new System.Drawing.Printing.PrintPageEventHandler(PrintDocument1_PrintPage);
+           
+        }
+        private void PrintDocument1_PrintPage(System.Object sender, System.Drawing.Printing.PrintPageEventArgs e)
+        {
+            int wid = 0;
+            int hei = 0;
+            Pen Mpen = new Pen(Color.Black);
+            Mpen.Width = 3;
+            Rectangle prect = new Rectangle();
+            Rectangle drect = new Rectangle();
+            GTypes.PanelControl pan = GT.CST().mainPan;
+
+            try
+            {
+                prect.X = 0;
+                prect.Y = 0;
+                prect.Width = pan.GPan.Width;
+                prect.Height = pan.GPan.Height;
+
+                drect.X = 0;
+                drect.Y = 0;
+                drect.Width = 1063;
+                drect.Height = drect.Width * (744 / 1063);
+
+                wid = GT.CST().mainPan.GPan.Width;
+                hei = GT.CST().mainPan.GPan.Height;
+                GT.CST().mainPan.grSurface.DrawRectangle(Mpen, 0, 0, wid - 1, hei - 1);
+
+                e.Graphics.DrawImage(pan.drawingImage, drect, prect, GraphicsUnit.Pixel);
+
+                e.HasMorePages = false;
+
+            }
+            catch (Exception ex)
+            {              
+            }
+
+        }
+
+        private void TabControl1_SelectedIndexChanged(System.Object sender, System.EventArgs e)
+        {
+            IndexUpdate();
+        }
+
+        public void setV8BaseID(int id)
+        {
+            theBaseID = id;
+        }
+        public void setV8ToolID(int id)
+        {
+            theToolID = id;
+        }
+
+       
+        public void endUpdateThread()
+        {
+            endUpThread = true;
+            liveUpdate.Abort();
+        }
+        private void liveUpdateThread()
+        {
+            int i = 0;
+            int j = 0;
+            int k = 0;
+            int cnt = 0;
+            int maxL = 0;
+            bool tabMatched = false;
+            int counter = 0;
+
+            Thread.Sleep(5000);
+            GTypes.GraphSurface GS;
+            while(true)
+            {
+                if (endUpThread)
+                    break; 
+
+                if (counter > 10)
+                {
+                    counter = 0;
+                    GParams.updating = false;
+                    GParams.haltUpdate = false;
+                    GParams.haltUpdatefromSplit = false;
+                    GParams.inRedraw = false;
+
+                }
+
+                Thread.Sleep(GParams.threadUpdateTime);
+
+                if (endUpThread)
+                    break;
+
+                tabMatched = true;
+                if (GParams.updating || GParams.haltUpdate || GParams.haltUpdatefromSplit || GParams.inRedraw)
+                {
+                    counter += 1;
+                    continue;
+                }
+                if (GParams.liveGraphs == null)
+                {
+                    continue;
+                }
+                counter = 0;
+
+                for (i = 0; i < GParams.liveGraphs.Length; i++)
+                {
+                    cnt = 0;
+                    if (GParams.liveGraphs[i].Lpts.Count > 1)
+                    {
+                        cnt = GParams.liveGraphs[i].Lpts.Count - 1;
+                        if (GParams.liveGraphs[i].currentPt == 0)
+                        {
+                            GS = getGraphSurfaceFromtag(GParams.liveGraphs[i].graphid);
+                            if (GS != null)
+                            {
+                                GS.ptCount = 0;
+                            }
+                        }
+                        k = 0;
+                        try
+                        {
+                            for (j = GParams.liveGraphs[i].currentPt; j <= cnt; j++)
+                            {
+                                if (j >= GParams.liveGraphs[i].Lpts.Count)
+                                {
+                                    cnt = GParams.liveGraphs[i].Lpts.Count - 1;
+                                    break; 
+                                }
+                                if (k >= GParams.LUpts.Length)
+                                {
+                                    maxL = GParams.LUpts.Length;
+                                    maxL = maxL * 2;
+                                    Array.Resize(ref GParams.LUpts, maxL);
+                                }
+
+                                GParams.LUpts[k] = (FitMaths.DPoint)GParams.liveGraphs[i].Lpts[j];
+                                k += 1;
+                            }
+
+                        }
+                        catch (Exception ex)
+                        {
+                        }
+
+                        GParams.liveGraphs[i].currentPt = cnt + 1;
+                        if (k > 0)
+                        {
+                            updateGraph(GParams.liveGraphs[i].graphid, GParams.LUpts, k);
+                        }
+                    }
+                    if (GParams.liveGraphs[i].tabid == GParams.GT.getgrTabSelected())
+                    {
+                        tabMatched = true;
+                    }
+                    if (cnt > 10000 && k > 0)
+                    {
+                        GParams.liveGraphs[i].Lpts.Clear();
+                        GParams.liveGraphs[i].Lpts.Add(GParams.LUpts[0]);
+                        GParams.liveGraphs[i].Lpts.Add(GParams.LUpts[0]);
+                        GParams.liveGraphs[i].currentPt = 2;
+                    }
+
+                }
+                if (!GParams.updating && tabMatched)
+                {
+                    GParams.grSet = true;
+                    redrawAll();
+                }
+
+            } 
+
+        }
+
+        public GTypes.GraphSurface getGraphSurfaceFromtag(int tagid)
+        {
+            int i = 0;
+            int j = 0;
+            GTypes.GrTabControl tt;
+            int cnt = GT.GetTabCount();
+
+            for (i = 0; i < cnt; i++)
+            {
+                tt = GT.GetTab(i);
+                if (tt == null)
+                    continue;
+                if (tt.Graphs == null)
+                    continue;
+
+                for (j = 0; j < tt.Graphs.Length; j++)
+                {
+                    if (tt.Graphs[j].tagid == tagid)
+                        return tt.Graphs[j];
+                }
+            }
+
+
+            if (GT.CST().Graphs == null)
+                return null;
+
+            for (i = 0; i < GT.CST().Graphs.Length; i++)
+            {
+                if (GT.CST().Graphs[i].tagid == tagid)
+                    return GT.CST().Graphs[i];
+            }
+
+            return null;
+        }
+
+        public GTypes.GraphSurface getExternalGraphSurface(GTypes.GraphControl gc)
+        {
+            int i = 0;
+            int cnt = 0;
+
+            if (gc.exGp == null)
+                return null;
+
+            int tabid = gc.exTabid;
+            GTypes.GrTabControl tt;
+            tt = gc.exGp.GT.GetTab(tabid);
+            if (tt == null)
+                return null;
+
+            if (tt.Graphs != null)
+            {
+                cnt = tt.Graphs.Length;
+                for (i = 0; i < cnt; i++)
+                {
+                    if (tt.Graphs[i].tagid == gc.tag)
+                        return tt.Graphs[i];
+                }
+            }
+            return null;
+        }
+
+        public void redrawAll()
+        {
+            if (GParams.forgetRedraw)
+                return;
+            redrawAll_now();
+            if (GParams.secondRedrawRequired)
+                redrawAll_now();
+
+        }
+
+        public void redrawAll_now()
+        {
+            int i = 0;
+            if (GParams.inRedraw)
+                return;
+
+            if (!GParams.grSet)
+                return;
+
+            GParams.inRedraw = true;
+            GParams.XgridDrawn = false;
+            if (GT.CST().mainPan.needToSetScale)
+                setXscaleFromPoints();
+
+            try
+            {
+                GT.CST().grSurface.Clear(GT.CST().page.BackColor);
+                drawTheGraph(GT.CST().mainPan);
+                GT.CST().mainPan.legend.updateMinMax(GT.CST().mainPan);
+
+                if (GT.CST().subPan != null)
+                {
+                    for (i = 0; i < GT.CST().subPan.Length; i++)
+                    {
+                        drawTheGraph(GT.CST().subPan[i]);
+                        GT.CST().subPan[i].legend.updateMinMax(GT.CST().subPan[i]);
+                    }
+                }
+                GT.CST().tabSurface.DrawImage(GT.CST().drawingImage, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                GParams.inRedraw = false;
+            }
+            GParams.inRedraw = false;
+            GParams.XgridDrawn = false;
+
+
+        }
+       
+        public void updateGraph(int id, double[] bpts)
+        {
+            int i = 0;
+            FitMaths.DPoint[] pts = new FitMaths.DPoint[bpts.Length];
+            for (i = 0; i < bpts.Length; i++)
+            {
+                pts[i].x = (float)bpts[i];
+                pts[i].y = 0;
+                if (i == 0)
+                    pts[i].startPt = true;
+                else
+                    pts[i].startPt = false;
+            }
+            updateGraph(id, pts);
+        }
+
+        public void updateGraph(int tid, FitMaths.DPoint[] pts, int ppcnt)
+        {
+            int i = 0;
+            int cnt = 0;
+            GTypes.GraphSurface GS;
+
+            GS = getGraphSurfaceFromtag(tid);
+            if (GS == null)
+                return;
+
+            try
+            {
+                if (GS.ptCount + ppcnt >= GS.maxptCount)
+                {
+                    if (GS.useSwap)
+                    {
+                        GParams.GM.writeGmem(GS.Dpts, GS.ptCount, theBaseID, theToolID, tid);
+                        GS.ptCount = 0;
+                    }
+                    else
+                    {
+                        GS.maxptCount *= 2;
+                        Array.Resize(ref GS.Dpts, GS.maxptCount + 1);
+                    }
+                }
+
+                cnt = 0;
+                for (i = 0; i < ppcnt; i++)
+                {
+                    GS.Dpts[GS.ptCount + cnt] = pts[i];
+                    GS.Dpts[GS.ptCount + cnt].y *= (float)GS.DYscale; // JIM LEGEND SCALE
+                  
+                    cnt += 1;
+                }
+                GS.ptCount += cnt;
+
+
+            }
+            catch (Exception ex)
+            {
+            }
+
+        }
+
+        public void updateGraph(int tid, FitMaths.DPoint[] pts)
+        {
+            int i = 0;
+            int ptcnt = 0;
+            GTypes.GraphSurface GS;
+
+            if (GT.CST().mainPan.taglist == null)
+                return;
+
+            GS = getGraphSurfaceFromtag(tid);
+            if (GS == null)
+                return;
+
+            ptcnt = pts.Length;
+
+            try
+            {
+                if (ptcnt >= GS.maxptCount)
+                {
+                    if (GS.maxptCount > 100000)
+                        GS.maxptCount += 100000;
+                    else
+                        GS.maxptCount *= 2;
+
+                    GS.Dpts = new FitMaths.DPoint[GS.maxptCount];                   
+                }
+
+                GS.ptCount = ptcnt;
+
+                for (i = 0; i < ptcnt; i++)
+                    GS.Dpts[i] = pts[i];
+
+            }
+            catch (Exception ex)
+            {
+            }
+
+        }
+
+
+        public void drawTheGraph()
+        {
+            if (!GParams.grSet)
+                return;
+
+            if (GT.CST().mainPan.taglist == null)
+                return;
+            drawTheGraph(GT.CST().mainPan);
+        }
+
+        public void drawTheGraph(GTypes.PanelControl pan)
+        {
+            GParams.grSet = true;
+            updatePoints(pan);
+        }
+
+       
+        private void updatePoints(GTypes.PanelControl pan)
+        {
+            double min = 0;
+            double max = 0;
+
+            if (GParams.updating)
+                return;
+
+            int i = 0;
+            int k = 0;
+
+            GTypes.GraphSurface GS;
+            epcnt = 0;
+
+            Pen pp = new Pen(Color.Black);
+            Pen Tpen = new Pen(Color.LightGray);
+
+            GParams.updating = true;
+
+            if (pan.taglist == null)
+            {
+                GParams.updating = false;
+                return;
+            }
+
+            pan.grSurface.Clear(pan.GPan.BackColor);
+
+            if (GParams.Panning)
+                pan.panSurface.Clear(pan.GPan.BackColor);
+
+            double yscl = 1.0;
+            if (CYscale != 10.0)
+            {
+                yscl = 10.0;
+                CYscale = 10.0;
+            }
+          
+            setgetMinMax(pan,ref min,ref max);
+
+            GR.DrawGrid(pan);
+            GParams.GB.FillBoundaries(pan);
+            GParams.GB.DrawBoundaries(pan);
+            GParams.GB.DrawMarkers(pan);
+
+
+            for (i = 0; i < pan.taglist.Length; i++)
+            {
+                if (!pan.taglist[i].visible)
+                    continue;
+                if (pan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(pan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(pan.taglist[i].tag);
+
+                if (GS == null)
+                {
+                    continue;
+                }
+
+                if (GS.gtype != GTypes.GRAPHTYPE.GRAPH && GS.gtype != GTypes.GRAPHTYPE.LIVE)
+                    continue;
+
+                pp.Color = pan.taglist[i].colour.Color;
+                if (pan.taglist[i].highlight)
+                    pp.Width = GParams.highlightWidth;
+                else
+                    pp.Width = GParams.SingleWidth;
+
+                if (pan.taglist[i].dispYscale != GS.DYscale)
+                {
+                    yscl = pan.taglist[i].dispYscale / GS.DYscale;
+                    for (k = 0; k < GS.ptCount; k++)
+                        GS.Dpts[k].y *= (float)yscl;
+                    GS.DYscale = pan.taglist[i].dispYscale;
+                }
+
+                try
+                {
+                    drawAsSwap(pan, GS, pp, i);
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+
+            if (!GParams.Panning)
+                DrawFRMarkers(pan);
+
+            for (i = 0; i < epcnt; i++)
+            {
+                pp.Color = epdata[i].col;
+                drawEndValue(pan, epdata[i].GS, epdata[i].x, epdata[i].y, pp, epdata[i].tag);
+            }
+
+            showlastXYValue();
+            GParams.GB.Drawtooltips(pan);
+            pan.panSurface.DrawImage(pan.drawingImage, pan.Xpan, pan.Ypan);
+            GParams.updating = false;
+            refreshDrawing(GParams.Cursorpan);
+        }
+
+        private void setgetMinMax(GTypes.PanelControl pan, ref double min, ref double max)
+        {
+            GTypes.GraphSurface GS = getMasterGraph(pan);
+
+            if (pan.YAxisType == GTypes.YAXIS_TYPE.FREE && !pan.zooming)
+            {
+                int j = 0;
+                int tid = 0;
+                tid = getMasterTag(pan);
+                if (tid < 0)
+                {
+                    min = pan.YAxisMin;
+                    max = pan.YAxisMax;
+                }
+                else
+                {
+                    max = pan.taglist[tid].dispPoints[0].y;
+                    min = pan.taglist[tid].dispPoints[0].y;
+
+                    for (j = 1; j < pan.taglist[tid].scrPCount; j++)
+                    {
+                        if (pan.taglist[tid].dispPoints[j].y > max)
+                            max = pan.taglist[tid].dispPoints[j].y;
+                        if (pan.taglist[tid].dispPoints[j].y < min)
+                            min = pan.taglist[tid].dispPoints[j].y;
+                    }
+                    pan.YAxisMin = min;
+                    pan.YAxisMax = max;
+                }
+
+            }
+            else if (pan.YAxisType == GTypes.YAXIS_TYPE.MIN_MAX || pan.zooming)
+            {
+                min = pan.YAxisMin;
+                max = pan.YAxisMax;
+            }
+            else
+            {
+                max = getMaxOnTab(1, pan, false);
+                min = getMinOnTab(1, pan, false);
+                pan.YAxisMin = min;
+                pan.YAxisMax = max;
+            }
+
+            if ((max - min) < 1E-08)
+                max = min + 1.0;
+
+            GS.maxd = max;
+            GS.mind = min;
+            lastMaxd = max;
+            lastMind = min;
+        }
+
+       
+        private void drawAsSwap(GTypes.PanelControl pan, GTypes.GraphSurface GS, Pen pp, int i)
+        {
+            double xscl = 0;
+            double tstart = 0;
+            double tstop = 0;
+            int j = 0;
+            int k = 0;
+            int scnt = 0;
+            int cnt = 0;
+            int lastx = 0;
+            if (pan.needToSetScale)
+                xscl = GS.xscale;
+            else
+                xscl = pan.Xscale;
+
+            tstart = pan.Xoffset / xscl;
+            tstop = (2000 + pan.Xoffset) / xscl;
+            int[] idl = GParams.GM.getMemFileList(tstart, tstop, theBaseID, theToolID, pan.taglist[i].tag);
+            int idp = 0;
+            int pcn = 0;
+            int stepcnt = 1;
+            pan.taglist[i].scrPCount = 0;
+            lastx = 0;
+
+            while(true)
+            {
+                if (idl == null)
+                    scnt = scaleToScreen(pan, GS, GS.Dpts, GS.ptCount, 2000 - lastx);
+                else if (idl[idp] == -1)
+                    scnt = scaleToScreen(pan, GS, GS.Dpts, GS.ptCount, 2000 - lastx);
+                else
+                {
+                    cnt = GParams.GM.readGmem(ref memDpoints,ref pcn, idl[idp]);
+                    if (cnt > stepcnt)
+                        stepcnt = cnt;
+                    if (pcn <= 2)
+                        continue;
+
+                    scnt = scaleToScreen(pan, GS, memDpoints, pcn, 2000);
+                    lastx = scrPts[scnt].X;
+                }
+
+                if (scnt <= 2)
+                {
+                    if (idl == null)
+                        break; 
+                    else if (idl[idp] == -1)
+                        break; 
+                    else
+                    {
+                        idp += 1;
+                        continue;
+                    }
+
+                }
+
+
+                if (pan.taglist[i].scrPCount + scnt > pan.taglist[i].maxscrPCount)
+                {
+                    Array.Resize(ref pan.taglist[i].scrPoints, pan.taglist[i].scrPCount + scnt + 1);
+                    Array.Resize(ref pan.taglist[i].dispPoints, pan.taglist[i].scrPCount + scnt + 1);
+                }
+
+                for (k = 0; k <= scnt; k++)
+                {
+                    pan.taglist[i].scrPoints[pan.taglist[i].scrPCount + k].X = scrPts[k].X;
+                    pan.taglist[i].scrPoints[pan.taglist[i].scrPCount + k].Y = scrPts[k].Y;
+                    pan.taglist[i].dispPoints[pan.taglist[i].scrPCount + k].x = dispPts[k].x;
+                    pan.taglist[i].dispPoints[pan.taglist[i].scrPCount + k].y = dispPts[k].y;
+
+                }
+                pan.taglist[i].scrPCount += scnt;
+
+                if (idl == null)
+                    break; 
+                else if (idl[idp] == -1)
+                    break;
+                else
+                    idp += 1;
+            } 
+
+            if (pan.taglist[i].asPoint)
+            {
+                for (k = 0; k < pan.taglist[i].scrPCount; k++)
+                {
+                    pan.grSurface.DrawLine(pp, pan.taglist[i].scrPoints[k].X - 1, pan.taglist[i].scrPoints[k].Y - 1, pan.taglist[i].scrPoints[k].X + 1, pan.taglist[i].scrPoints[k].Y + 1);
+                    pan.grSurface.DrawLine(pp, pan.taglist[i].scrPoints[k].X - 1, pan.taglist[i].scrPoints[k].Y + 1, pan.taglist[i].scrPoints[k].X + 1, pan.taglist[i].scrPoints[k].Y - 1);
+                }
+            }
+            else
+            {
+                int hlcnt = 0;
+                int hlcnt2 = 0;
+                int hw = (int)pp.Width;
+                for (k = 3; k < pan.taglist[i].scrPCount; k++)
+                {
+                    if (pan.taglist[i].scrPoints[k + 1].X < pan.taglist[i].scrPoints[k].X)
+                        hlcnt += 1;
+                }
+
+                if (hlcnt != 0)
+                {
+                    pp.Width = 1;
+                    pp.DashStyle = DashStyle.Dot;
+                }
+
+
+                for (k = 0; k < pan.taglist[i].scrPCount; k++)
+                {
+                    if (pan.taglist[i].scrPoints[k + 1].X < pan.taglist[i].scrPoints[k].X)
+                    {
+                        hlcnt2 += 1;
+                        if (hlcnt2 == hlcnt)
+                        {
+                            pp.Width = hw;
+                            pp.DashStyle = DashStyle.Solid;
+                        }
+
+                        continue;
+                    }
+                    pan.grSurface.DrawLine(pp, pan.taglist[i].scrPoints[k].X, pan.taglist[i].scrPoints[k].Y, pan.taglist[i].scrPoints[k + 1].X, pan.taglist[i].scrPoints[k + 1].Y);
+                }
+            }
+
+
+
+            if (pan.taglist[i].highlight)
+            {
+                if (GParams.HLpoint)
+                {
+                    for (j = 0; j <= scnt; j++)
+                    {
+                        if (scrPts[j].X >= GParams.HLx)
+                        {
+                            scnt = j;
+                            break;
+                        }
+                    }
+                }
+
+                if (epcnt < 250)
+                {
+                    epdata[epcnt].x = scrPts[scnt].X;
+                    epdata[epcnt].y = scrPts[scnt].Y;
+                    epdata[epcnt].col = pp.Color;
+                    epdata[epcnt].GS = GS;
+                    epdata[epcnt].tag = pan.taglist[i].tag;
+                    epcnt += 1;
+                }
+            }
+
+        }
+
+        public void DrawFRMarkers(GTypes.PanelControl pan)
+        {
+            int i = 0;
+            int hei = 0;
+            int xpos = 0;
+            hei = pan.GPan.Height;
+            for (i = 0; i < GParams.markerCnt; i++)
+            {
+                xpos = (int)((GParams.mpoints[i].tim * pan.Xscale) - pan.Xoffset);
+                pan.grSurface.DrawLine(Pens.ForestGreen, xpos, 0, xpos, hei);
+            }
+        }
+
+        
+        private void drawEndValue(GTypes.PanelControl pan, GTypes.GraphSurface GS, int x, int y, Pen pp, int tag)
+        {
+            string str = "";
+            string str2 = "";
+            double valu = 0;
+            int dx = 0;
+            int dy = 0;
+            int pos = 0;
+            int siz = 8;
+            int len = 0;
+
+            if (GParams.ignoreEndValues)
+            {
+                return;
+            }
+
+            siz = (int)(siz * GParams.EndValueScale);
+            Font f = new Font("timesnewroman", siz);
+
+            pos = GS.ptCount - 1;
+            if (pos >= 0)
+            {
+                valu = GS.Dpts[pos].y;
+                valu = valu / GS.DYscale;
+                str = valu.ToString("0.00");
+            }
+            len = str.Length;
+            str2 = GParams.getTaggedData(tag);
+            if (str2.Length > 2)
+            {
+                str = str + "[" + str2 + "]";
+                len += str2.Length - 4;
+            }
+
+            dx = (int)(str.Length * siz * 0.9);
+            x = x - dx;
+            y = y - 10;
+            dy = (int)(15 * GParams.EndValueScale);
+            dy += 5;
+
+            if (y < 0)
+            {
+                if (y + dy > 0)
+                    y = 0;
+            }
+            if (y < pan.GPan.Height)
+            {
+                if (y + dy > pan.GPan.Height)
+                    y = pan.GPan.Height - dy;
+            }
+
+            pan.grSurface.FillRectangle(Brushes.LightGray, x, y, dx, dy);
+            pp.Width = 2;
+            pan.grSurface.DrawRectangle(pp, x, y, dx, dy);
+            pan.grSurface.DrawString(str, f, Brushes.Black, x + 2, y + 5);
+        }
+
+        public void showlastXYValue()
+        {
+            int dumI = 0;
+            double dumD = 0;
+            if (!GParams.DisplayActiveValues)
+                return;
+
+            GParams.getDatavalueFromPosition(thelastpan, lastXYVx, lastXYVy,ref dumI,ref dumD);
+            string str = null;
+            string str1 = null;
+            string str2 = null;
+            string str12 = null;
+
+            str1 = GParams.setPlaces(GParams.markerLastTim);
+            str = GParams.markerLastTim.ToString(str1);
+            str12 = GParams.setPlaces(GParams.markerLastValue);
+            str2 = GParams.markerLastTim.ToString(str12);
+            doupdXY("Time: " + str, "Value: " + str2);
+
+        }
+
+        public void refreshDrawing(GTypes.PanelControl pan)
+        {
+            int dx = 0;
+            int dy = 0;
+            int i = 0;
+            int x1 = 0;
+            int y1 = 0;
+            int x2 = 0;
+            int y2 = 0;
+            int wid = 0;
+            int hei = 0;
+            bool found = false;
+            if (pan == null)
+                return;
+
+            wid = pan.GPan.Width;
+            hei = pan.GPan.Height;
+
+            if (GParams.updating)
+                return;
+
+
+            try
+            {
+                if (!GParams.grSet)
+                    return;
+
+                if (!GParams.cursorActive)
+                    return;
+
+                if (pan.taglist == null)
+                    return;
+
+                GParams.updating = true;
+                found = false;
+                for (i = 0; i < pan.taglist.Length; i++)
+                {
+                    if (pan.taglist[i].visible)
+                    {
+                        found = true;
+                        break; 
+                    }
+
+                }
+                if (!found)
+                {
+                    GParams.updating = false;
+                    return;
+                }
+
+                if (GParams.boxCursor)
+                {
+                    pan.panSurface.DrawImage(pan.drawingImage, 0, 0);
+                    dx = GParams.boxBotX - GParams.boxTopX;
+                    dy = GParams.boxBotY - GParams.boxTopY;
+                    pan.rectVSurface.DrawLine(Pens.SlateGray, 0, 0, 0, Math.Abs(dy));
+                    pan.rectHSurface.DrawLine(Pens.SlateGray, 0, 0, Math.Abs(dx), 0);
+                    if (dx > 0)
+                    {
+                        x1 = GParams.boxTopX;
+                        x2 = GParams.boxBotX;
+                    }
+                    else
+                    {
+                        x2 = GParams.boxTopX;
+                        x1 = GParams.boxBotX;
+                    }
+                    if (dy > 0)
+                    {
+                        y1 = GParams.boxTopY;
+                        y2 = GParams.boxBotY;
+                    }
+                    else
+                    {
+                        y2 = GParams.boxTopY;
+                        y1 = GParams.boxBotY;
+                    }
+                    Rectangle r = default(Rectangle);
+                    r.X = 0;
+                    r.Y = 0;
+                    r.Width = Math.Abs(dx);
+                    r.Height = 1;
+
+                    pan.panSurface.DrawImage(pan.rectHImage, x1, y1, r, GraphicsUnit.Pixel);
+                    pan.panSurface.DrawImage(pan.rectHImage, x1, y2, r, GraphicsUnit.Pixel);
+                    r.Width = 1;
+                    r.Height = Math.Abs(dy);
+                    pan.panSurface.DrawImage(pan.rectVImage, x1, y1, r, GraphicsUnit.Pixel);
+                    pan.panSurface.DrawImage(pan.rectVImage, x2, y1, r, GraphicsUnit.Pixel);
+
+                }
+                else
+                {
+                    clearCursors(pan);
+                    if (GParams.displayCursor)
+                    {
+                        pan.panSurface.DrawLine(Pens.SlateGray, GParams.CursorX - 1, 0, GParams.CursorX - 1, hei);
+                        pan.panSurface.DrawLine(Pens.SlateGray, 0, GParams.CursorY - 1, wid, GParams.CursorY - 1);
+                    }
+                    if (GParams.displayGraphMover)
+                    {
+                        pan.panSurface.FillRectangle(Brushes.Blue, GParams.crossX, GParams.crossY, 6, 6);
+                    }
+
+                    GParams.lastCrossX = GParams.crossX;
+                    GParams.lastCrossY = GParams.crossY;
+                    GParams.lastCursorX = GParams.CursorX;
+                    GParams.lastCursorY = GParams.CursorY;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                GParams.updating = false;
+            }
+            GParams.updating = false;
+        }
+
+        public GTypes.GraphSurface getMasterGraph(GTypes.PanelControl pan)
+        {
+            int i = 0;
+            int len = 0;
+            if (pan.taglist == null)
+                return null;
+
+            len = pan.taglist.Length;
+            if (len <= 0)
+                return null;
+
+            for (i = 0; i < len; i++)
+            {
+                if (pan.taglist[i].master)
+                {
+                    if (pan.taglist[i].isExternal)
+                        return getExternalGraphSurface(pan.taglist[i]);
+                    else
+                        return getGraphSurfaceFromtag(pan.taglist[i].tag);
+                }
+            }
+
+            pan.taglist[0].master = true;
+            if (pan.taglist[0].isExternal)
+                return getExternalGraphSurface(pan.taglist[0]);
+            else
+                return getGraphSurfaceFromtag(pan.taglist[0].tag);
+        }
+
+        public GTypes.GraphSurface getSecondMasterGraph(GTypes.PanelControl pan)
+        {
+            int i = 0;
+            if (pan.taglist == null)
+                return null;
+
+            for (i = 0; i < pan.taglist.Length; i++)
+            {
+                if (pan.taglist[i].rightgroup)
+                {
+                    if (pan.taglist[i].isExternal)
+                        return getExternalGraphSurface(pan.taglist[i]);
+                    else
+                        return getGraphSurfaceFromtag(pan.taglist[i].tag);
+                }
+            }
+            return null;
+        }
+
+        public int getMasterTag(GTypes.PanelControl pan)
+        {
+            int i = 0;
+            int len = 0;
+            if (pan.taglist == null)
+                return -1;
+            len = pan.taglist.Length;
+            if (len <= 0)
+                return -1;
+
+            for (i = 0; i < len; i++)
+            {
+                if (pan.taglist[i].master)
+                    return i;
+            }
+            return 0;
+
+        }
+        public double getMaxOnTab(int stepcnt, GTypes.PanelControl pan, bool rightgroup)
+        {
+            int i = 0;
+            int j = 0;
+            double max = 0.0;
+            GTypes.GraphSurface GS;
+            bool firstTime = true;
+
+
+            if (pan.taglist == null)
+                return 1.0;
+
+            for (i = 0; i < pan.taglist.Length; i++)
+            {
+                if (!pan.taglist[i].visible)
+                    continue;
+
+                if (pan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(pan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(pan.taglist[i].tag);
+
+                if (GS == null)
+                    continue;
+                if (GParams.GB.isAnyMarkerorBoundary(GS.gtype))
+                    continue;
+
+                if (rightgroup)
+                {
+                    if (pan.taglist[i].rightgroup)
+                    {
+                        for (j = 0; j < pan.taglist[i].scrPCount; j += stepcnt)
+                        {
+                            if (firstTime)
+                            {
+                                max = pan.taglist[i].dispPoints[j].y;
+                                firstTime = false;
+                            }
+                            if (max < pan.taglist[i].dispPoints[j].y)
+                                max = pan.taglist[i].dispPoints[j].y;
+                        }
+                    }
+                }
+                else
+                {
+                    if (!pan.taglist[i].rightgroup)
+                    {
+                        for (j = 0; j < pan.taglist[i].scrPCount; j += stepcnt)
+                        {
+                            if (firstTime)
+                            {
+                                max = pan.taglist[i].dispPoints[j].y;
+                                firstTime = false;
+                            }
+                            if (max < pan.taglist[i].dispPoints[j].y)
+                                max = pan.taglist[i].dispPoints[j].y;
+                        }
+                    }
+                }
+            }
+
+            if (max < 1E-05)
+                max = 1.0;
+            return max;
+        }
+
+        public double getMinOnTab(int stepcnt, GTypes.PanelControl pan, bool rightgroup)
+        {
+            int i = 0;
+            int j = 0;
+            double min = 0.0;
+            GTypes.GraphSurface GS;
+            bool firstTime = true;
+
+            if (pan.taglist == null)
+                return 0.0;
+
+
+            for (i = 0; i < pan.taglist.Length; i++)
+            {
+                if (!pan.taglist[i].visible)
+                    continue;
+                if (pan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(pan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(pan.taglist[i].tag);
+
+                if (GS == null)
+                    continue;
+                if (GParams.GB.isAnyMarkerorBoundary(GS.gtype))
+                    continue;
+
+                if (rightgroup)
+                {
+                    if (pan.taglist[i].rightgroup)
+                    {
+                        for (j = 0; j < pan.taglist[i].scrPCount; j += stepcnt)
+                        {
+                            if (firstTime)
+                            {
+                                min = pan.taglist[i].dispPoints[j].y;
+                                firstTime = false;
+                            }
+                            if (min > pan.taglist[i].dispPoints[j].y)
+                                min = pan.taglist[i].dispPoints[j].y;
+                        }
+                    }
+                }
+                else
+                {
+                    if (!pan.taglist[i].rightgroup)
+                    {
+                        for (j = 0; j < pan.taglist[i].scrPCount; j += stepcnt)
+                        {
+                            if (firstTime)
+                            {
+                                min = pan.taglist[i].dispPoints[j].y;
+                                firstTime = false;
+                            }
+                            if (min > pan.taglist[i].dispPoints[j].y)
+                                min = pan.taglist[i].dispPoints[j].y;
+                        }
+                    }
+                }
+            }
+
+            return min;
+        }
+
+        private int scaleToScreen(GTypes.PanelControl pan, GTypes.GraphSurface GGS, FitMaths.DPoint[] pts, int pCount, int screenDX)
+        {
+            int i = 0;
+            int j = 0;
+            int Jhei = 0;
+            double tempP = 0;
+            double max = 0;
+            double min = 0;
+            double xscl = 0;
+           
+            int startpt = 0;
+            int endpt = 0;
+            int stepcnt = 0;
+            int x = 0;
+            int y = 0;
+            int cnt = 0;
+            int ymin = 0;
+            int ymax = 0;
+            bool setminmax = false;
+
+            if (GGS == null)
+                return 0;
+
+            if (pCount <= 2)
+                return 0;
+
+
+            if (pan.needToSetScale)
+                xscl = GGS.xscale;
+            else
+                xscl = pan.Xscale;
+
+
+            //find start
+            startpt = getDataStart(pan, pts, pCount, xscl);
+
+
+            //find end
+            endpt = getDataEnd(startpt, pan, pts, pCount, xscl);
+            if (screenDX < 100)
+                screenDX = 100;
+
+            stepcnt = (endpt - startpt) / screenDX;
+            if (stepcnt <= 0)
+                stepcnt = 1;
+
+
+
+            try
+            {
+                double yy = 0;
+
+                max = lastMaxd;               
+                min = lastMind;
+                Jhei = pan.GPan.Height - 5;
+
+                try
+                {
+                    cnt = 0;
+
+                    GParams.JYscale = ((max - min) / (Jhei));
+                    setminmax = true;
+
+                    for (j = startpt; j <= endpt; j++)
+                    {
+                        x = (int)((pts[j].x * xscl) - pan.Xoffset);
+                        yy = pts[j].y;
+
+                        tempP = ((yy - min) / GParams.JYscale) * pan.Yscale;
+                        y = (int)(Jhei - tempP - pan.Yoffset);
+
+                        if (cnt == 0)
+                        {
+                            scrPts[cnt].X = x;
+                            scrPts[cnt].Y = y;
+                            dispPts[cnt].x = pts[j].x;
+                            dispPts[cnt].y = (float)yy;
+                            ++cnt;
+                            continue;
+                        }
+
+                        if (setminmax)
+                        {
+                            ymin = y;
+                            ymax = y;
+                            setminmax = false;
+                        }
+                        else
+                        {
+                            if (y > ymax)
+                                ymax = y;
+                            if (y < ymin)
+                                ymin = y;
+                        }
+
+
+                        if ((j % stepcnt) == 0)
+                        {
+                            scrPts[cnt].X = x;
+                            scrPts[cnt].Y = ymin;
+                            dispPts[cnt].x = pts[j].x;
+                            dispPts[cnt].y = (float)yy;
+                            ++cnt;
+                            if (ymin != ymax)
+                            {
+                                scrPts[cnt].X = x;
+                                scrPts[cnt].Y = ymax;
+                                dispPts[cnt].x = pts[j].x;
+                                dispPts[cnt].y = (float)yy;
+                                cnt += 1;
+                            }
+
+                            setminmax = true;
+                        }
+                        else
+                            continue;
+                    }
+                    if (pan.horizontalBorder != null)
+                    {
+                        for (i = 0; i < pan.horizontalBorder.Length; i++)
+                        {
+                            tempP = pan.horizontalBorder[i].y1 - min;
+                            tempP = tempP / GParams.JYscale;
+                            tempP *= pan.Yscale;
+                            pan.horizontalBorder[i].scry1 = (int)(Jhei - tempP - pan.Yoffset);
+
+                            tempP = pan.horizontalBorder[i].y2 - min;
+                            tempP = tempP / GParams.JYscale;
+                            tempP *= pan.Yscale;
+                            pan.horizontalBorder[i].scry2 = (int)(Jhei - tempP - pan.Yoffset);
+                        }
+
+                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                return cnt - 1;
+            }
+            return cnt - 1;
+        }
+
+        public void drawCross(GTypes.PanelControl pan, int x, double value)
+        {
+            int hei = 0;
+            int j = 0;
+            int tid = 0;
+            double tempP = 0;
+            double min = 0;
+            double max = 0;
+
+
+            tid = getMasterTag(pan);
+            if (tid < 0)
+                return;
+
+            try
+            {
+                hei = pan.GPan.Height - 5;
+                if (pan.YAxisType == GTypes.YAXIS_TYPE.FREE)
+                {
+                    max = pan.taglist[tid].dispPoints[0].y;
+                    min = pan.taglist[tid].dispPoints[0].y;
+
+                    for (j = 1; j < pan.taglist[tid].scrPCount; j++)
+                    {
+                        if (pan.taglist[tid].dispPoints[j].y > max)
+                            max = pan.taglist[tid].dispPoints[j].y;
+                        if (pan.taglist[tid].dispPoints[j].y < min)
+                            min = pan.taglist[tid].dispPoints[j].y;
+                    }
+                }
+                else if (pan.YAxisType == GTypes.YAXIS_TYPE.MIN_MAX)
+                {
+                    min = pan.YAxisMin;
+                    max = pan.YAxisMax;
+                }
+                else
+                {
+                    max = getMaxOnTab(1, pan, false);
+                    min = getMinOnTab(1, pan, false);
+                }
+
+                tempP = value - min;
+                tempP = tempP / ((max - min) / (hei));
+                tempP *= pan.Yscale;
+                value = hei - tempP - pan.Yoffset;
+
+                GParams.crossX = x - 3;
+                GParams.crossY = (int)(value - 3);
+            }
+            catch (Exception ex)
+            {
+                return;
+            }
+        }
+
+        public delegate void SetUpdateLastXY(string s1, string s2);
+        private void doupdXY(string s1, string s2)
+        {
+            SetUpdateLastXY d = new SetUpdateLastXY(DoTheXY);
+            try
+            {
+                this.Invoke(d, s1, s2);
+            }
+            catch (Exception ex)
+            {
+                return;
+            }
+        }
+
+        private void DoTheXY(string s1, string s2)
+        {
+            XValueLabel.Text = s1;
+            YValueLabel.Text = s2;
+        }
+
+        public void clearCursors(GTypes.PanelControl pan)
+        {
+            Rectangle rect = default(Rectangle);
+            int wid = 0;
+            int hei = 0;
+
+            wid = pan.GPan.Width;
+            hei = pan.GPan.Height;
+
+            if (GParams.displayCursor)
+            {
+                rect.X = GParams.lastCursorX - 1;
+                rect.Y = 0;
+                rect.Width = 2;
+                rect.Height = hei;
+                pan.panSurface.DrawImage(pan.drawingImage, GParams.lastCursorX - 1, 0, rect, GraphicsUnit.Pixel);
+
+                rect.X = 0;
+                rect.Y = GParams.lastCursorY - 1;
+                rect.Width = wid;
+                rect.Height = 2;
+                pan.panSurface.DrawImage(pan.drawingImage, 0, GParams.lastCursorY - 1, rect, GraphicsUnit.Pixel);
+            }
+
+            if (GParams.displayGraphMover)
+            {
+                rect.X = GParams.lastCrossX - 2;
+                rect.Y = GParams.lastCrossY - 2;
+                rect.Width = 10;
+                rect.Height = 10;
+                pan.panSurface.DrawImage(pan.drawingImage, GParams.lastCrossX - 2, GParams.lastCrossY - 2, rect, GraphicsUnit.Pixel);
+            }
+        }
+
+        private int getDataStart(GTypes.PanelControl pan, FitMaths.DPoint[] Dpts, int ptCount, double xscl)
+        {
+            int startpt = 0;
+            int endpt = 0;
+            int laststartpt = 0;
+            int x = (int)((Dpts[0].x * xscl) - pan.Xoffset);
+
+            if (x >= 0)
+                return 0;
+
+            endpt = ptCount - 1;
+            laststartpt = 0;
+            startpt = endpt / 2;
+
+            while(true)
+            {
+                x = (int)((Dpts[startpt].x * xscl) - pan.Xoffset);
+
+                if (x == 0)
+                    break; 
+
+                if (x > 0)
+                {
+                    if (Math.Abs(endpt - laststartpt) <= 2)
+                        break; 
+
+                    endpt = startpt;
+                    startpt = startpt - ((endpt - laststartpt) / 2);
+                }
+                else if (x < 0)
+                {
+                    if ((endpt - startpt) < 20)
+                        break; 
+
+                    laststartpt = startpt;
+                    if (Math.Abs(endpt - startpt) <= 2)
+                        break; 
+                    startpt = startpt + ((endpt - startpt) / 2);
+                }
+                if (startpt == 0)
+                    break; 
+            } 
+
+            return startpt;
+        }
+
+        private int getDataEnd(int startpt, GTypes.PanelControl pan, FitMaths.DPoint[] Dpts, int ptCount, double xscl)
+        {
+            int endpt = 0;
+            int lastendpt = 0;
+            int x = 0;
+
+            endpt = ptCount - 1;
+            x = (int)((Dpts[endpt].x * xscl) - pan.Xoffset);
+
+
+            if (x <= 2000)
+                return endpt;
+
+            lastendpt = endpt;
+            endpt = endpt - ((endpt - startpt) / 2);
+            while(true)
+            {
+                x = (int)((Dpts[endpt].x * xscl) - pan.Xoffset);
+
+                if (Math.Abs(x - 2000) <= 2)
+                    break; 
+                if (x > 2000)
+                {
+                    if ((endpt - startpt) < 20)
+                        break; 
+                    lastendpt = endpt;
+                    if (Math.Abs(endpt - startpt) <= 2)
+                        break; 
+                    endpt = endpt - ((endpt - startpt) / 2);
+                }
+                else if (x < 2000)
+                {
+                    if (ptCount - endpt < 20)
+                    {
+                        endpt = ptCount - 1;
+                        break; 
+                    }
+                    if (Math.Abs(lastendpt - endpt) <= 2)
+                        break;
+
+                    endpt = endpt + ((lastendpt - endpt) / 2);
+                }
+            } 
+
+            return endpt;
+        }
+
+
+        private void setXscaleFromPoints()
+        {
+            int i = 0;
+            int j = 0;          
+            double maxvalu = 0;
+            double minvalu = 0;
+            GTypes.GraphSurface GS;
+            GTypes.PanelControl pan;
+          
+            maxvalu = 0.0;
+            pan = GT.CST().mainPan;
+            if (pan.taglist == null)
+                return;
+
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (!GT.CST().mainPan.taglist[i].visible)
+                    continue;
+                if (GT.CST().mainPan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(GT.CST().mainPan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(GT.CST().mainPan.taglist[i].tag);
+
+                if (GS == null)
+                    continue;
+                if (GS.Dpts == null)
+                    continue;
+
+                for (j = 0; j < GS.ptCount; j++)
+                {
+                    if (GS.Dpts[j].x > maxvalu)
+                        maxvalu = GS.Dpts[j].x;
+                }
+             
+            }
+
+            if (pan.XAxisType == GTypes.XAXIS_TYPE.MIN_MAX)
+                maxvalu = pan.XAxisMax - pan.XAxisMin;
+            else if (pan.XAxisType == GTypes.XAXIS_TYPE.SET_SPAN)
+            {
+                minvalu = maxvalu - pan.XAxisSpan;
+                if (minvalu < 0)
+                    minvalu = 0.0;
+                maxvalu = pan.XAxisSpan;
+            }
+
+            maxvalu *= 1.01;
+            // extra 1% so that right edge of graph is not hard against panel edge
+            if (maxvalu < 1E-06)
+                maxvalu = 1.0;
+
+            GT.CST().mainPan.Xscale = GT.CST().mainPan.GPan.Width / maxvalu;
+            if (GT.CST().mainPan.XAxisType == GTypes.XAXIS_TYPE.MIN_MAX)
+                GT.CST().mainPan.Xoffset = (GT.CST().mainPan.XAxisMin * GT.CST().mainPan.Xscale);
+            else if (GT.CST().mainPan.XAxisType == GTypes.XAXIS_TYPE.SET_SPAN)
+                GT.CST().mainPan.Xoffset = (minvalu * GT.CST().mainPan.Xscale);
+
+            if (GT.CST().subPan != null)
+            {
+                for (i = 0; i < GT.CST().subPan.Length; i++)
+                {
+                    GT.CST().subPan[i].Xscale = GT.CST().mainPan.Xscale;
+                    GT.CST().subPan[i].Xoffset = GT.CST().mainPan.Xoffset;
+                }
+            }
+
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(GT.CST().mainPan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(GT.CST().mainPan.taglist[i].tag);
+
+                if (GS == null)
+                    continue;
+
+                GS.xscale = GT.CST().mainPan.Xscale;
+            }
+        }
+
+        public void setPointsScale(ref GTypes.PanelControl pan, bool onoff)
+        {
+            if (pan == null)
+                return;
+            pan.needToSetScale = onoff;
+        }
+
+        public void SetTheGrid(bool onoff)
+        {
+            GParams.DrawTheGrid = onoff;
+        }
+
+        public void SetTheXaxis(bool onoff)
+        {
+            GParams.DrawTheXaxis = onoff;
+            ShowXAxisToolStripMenuItem.Checked = onoff;
+        }
+
+        public void SetTheYaxis(bool onoff)
+        {
+            GParams.DrawTheYaxis = onoff;
+            ShowYAxisToolStripMenuItem.Checked = onoff;
+        }
+
+        public void SetTheYaxisLegend(bool onoff)
+        {
+            GParams.DrawTheYaxisLegend = onoff;
+        }
+        public void SetTheXaxisLegend(bool onoff)
+        {
+            GParams.DrawTheXaxisLegend = onoff;
+        }
+
+
+        public void resetX()
+        {
+            int i = 0;
+            if (GT.CST().subPan != null)
+            {
+                for (i = 0; i < GT.CST().subPan.Length; i++)
+                {
+                    setPointsScale(ref GT.CST().subPan[i], true);
+                    resetSingleX(ref GT.CST().subPan[i]);
+                }
+            }
+            setPointsScale(ref GT.CST().mainPan, true);
+            resetSingleX(ref GT.CST().mainPan);
+
+        }
+
+
+        public void resetY(GTypes.PanelControl pan)
+        {
+            setPointsScale(ref pan, true);
+            resetSingleY(ref pan);
+        }
+
+
+
+        public void reset()
+        {
+            int i = 0;
+            if (GT.CST().subPan != null)
+            {
+                for (i = 0; i < GT.CST().subPan.Length; i++)
+                {
+                    setPointsScale(ref GT.CST().subPan[i], true);
+                    resetSingleX(ref GT.CST().subPan[i]);
+                    resetSingleY(ref GT.CST().subPan[i]);
+                }
+            }
+            setPointsScale(ref GT.CST().mainPan, true);
+            resetSingleX(ref GT.CST().mainPan);
+            resetSingleY(ref GT.CST().mainPan);
+            redrawAll();
+            // Again to force a real reset
+            redrawAll();
+        }
+
+        private void resetSingleX(ref GTypes.PanelControl pan)
+        {
+            pan.Xoffset = 0;
+            pan.Xpan = 0;
+            pan.Xscale = 1.0;
+            pan.zooming = false;
+            GParams.lastscaleX = 1.0;
+        }
+
+        private void resetSingleY(ref GTypes.PanelControl pan)
+        {
+            pan.Yoffset = 0;
+            pan.Ypan = 0;
+            pan.Yscale = 1.0;
+            pan.zooming = false;
+            GParams.lastscaleY = 1.0;
+        }
+
+        public void updateLegend()
+        {
+            int i = 0;
+            if (GT.CST().mainPan != null)
+            {
+                GT.CST().mainPan.legend.updateLegend(GT.CST().mainPan);
+                if (GT.CST().subPan != null)
+                {
+                    for (i = 0; i < GT.CST().subPan.Length; i++)
+                        GT.CST().subPan[i].legend.updateLegend(GT.CST().subPan[i]);
+                }
+            }
+            if (GT.CST().VP != null)
+                GT.CST().VP.MaybeHide();
+        }
+
+        public void hideLegend()
+        {
+            int i = 0;
+
+            if (GT.CST().mainPan != null)
+            {
+                if (GT.CST().mainPan.legend.MaybeHide())
+                    GParams.CM.setlegendTick(ref GT.CST().mainPan, false);
+
+                if (GT.CST().subPan != null)
+                {
+                    for (i = 0; i < GT.CST().subPan.Length; i++)
+                    {
+                        if (GT.CST().subPan[i].legend.MaybeHide())
+                            GParams.CM.setlegendTick(ref GT.CST().subPan[i], false);
+                    }
+                }
+            }
+            if (GT.CST().VP != null)
+                GT.CST().VP.MaybeHide();
+        }
+
+        public void showLegend()
+        {
+            int i = 0;
+            if (GT.CST().mainPan != null)
+            {
+                if (GT.CST().mainPan.legend.MaybeShow())
+                    GParams.CM.setlegendTick(ref GT.CST().mainPan, true);
+
+                if (GT.CST().subPan != null)
+                {
+                    for (i = 0; i < GT.CST().subPan.Length; i++)
+                    {
+                        if (GT.CST().subPan[i].legend.MaybeShow())
+                            GParams.CM.setlegendTick(ref GT.CST().subPan[i], true);
+                    }
+                }
+            }
+            if (GT.CST().VP != null)
+                GT.CST().VP.MaybeShow();
+        }
+
+        public void setSize(int width, int height)
+        {
+            GParams.haltUpdate = true;
+            GT.setSizes(width, height);
+            GParams.haltUpdate = false;
+        }
+
+        public void setSelectedTab(int id)
+        {
+            hideLegend();
+            TabControl1.SelectedIndex = id;
+            IndexUpdate();
+        }
+
+        public void removeGraph(int tagid)
+        {
+            int i = 0;
+            int cnt = 0;
+            int id = -1;
+            cnt = GT.CST().Graphs.Length;
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.CST().Graphs[i].tagid == tagid)
+                {
+                    id = i;
+                    break; 
+                }
+            }
+            if (id == -1)
+                return;
+
+            cnt -= 1;
+
+
+            for (i = id; i < cnt; i++)
+                GT.CST().Graphs[i] = GT.CST().Graphs[i + 1];
+
+            Array.Resize(ref GT.CST().Graphs, cnt);
+            id = -1;
+            cnt = GT.CST().mainPan.taglist.Length;
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].tag == tagid)
+                {
+                    id = i;
+                    break; 
+                }
+
+            }
+            if (id == -1)
+                return;
+
+            for (i = 0; i < cnt; i++)
+                GT.CST().mainPan.taglist[i].master = false;
+
+            GT.CST().mainPan.taglist[0].master = true;
+
+            cnt -= 1;
+            for (i = id; i < cnt; i++)
+                GT.CST().mainPan.taglist[i] = GT.CST().mainPan.taglist[i + 1];
+
+
+            Array.Resize(ref GT.CST().mainPan.taglist, cnt);
+            id = -1;
+            GTypes.MenuTag mt;
+            for (i = 0; i < GT.CST().mainPan.conMenu.MenuItems.Count; i++)
+            {
+                mt = (GTypes.MenuTag)GT.CST().mainPan.conMenu.MenuItems[i].Tag;
+                if (mt.graphTag == tagid)
+                {
+                    id = i;
+                    break; 
+                }
+            }
+            if (id != -1)
+                GT.CST().mainPan.conMenu.MenuItems.RemoveAt(id);
+        }
+
+        public void doYaxisMenu(int paneltag)
+        {
+            int pl = 0;
+            int pw = 0;
+            if (GParams.YaxisConfig == null)
+            {
+                GParams.YaxisConfig = new YAxisForm(this);
+                GParams.YaxisConfig.Top = 1000;
+                GParams.YaxisConfig.Left = 500;
+                GParams.YaxisConfig.Show();
+                GParams.YaxisConfig.Hide();
+            }
+
+            if (paneltag == 0)
+            {
+                pl = GT.CST().mainPan.GPan.Left;
+                pw = GT.CST().mainPan.GPan.Width;
+                GParams.YaxisConfig.setGraphPanel(this, GT.CST().mainPan, -1);
+                GParams.YaxisConfig.Top = GT.CST().mainPan.GPan.Top + GParams.mouseY;
+                GParams.YaxisConfig.Left = GT.CST().mainPan.GPan.Left + GParams.mouseX;
+                if (GParams.YaxisConfig.Left + GParams.YaxisConfig.Width > pl + pw)
+                {
+                    GParams.YaxisConfig.Left = pl + pw - GParams.YaxisConfig.Width - 50;
+                }
+                GParams.YaxisConfig.Show();
+            }
+            else
+            {
+                if (GT.CST().subPan != null)
+                {
+                    paneltag = paneltag - 1;
+                    if (paneltag >= 0 && paneltag < GT.CST().subPan.Length)
+                    {
+                        GParams.YaxisConfig.setGraphPanel(this, GT.CST().subPan[paneltag], paneltag);
+                        pl = GT.CST().subPan[paneltag].GPan.Left;
+                        pw = GT.CST().subPan[paneltag].GPan.Width;
+                        GParams.YaxisConfig.Top = GT.CST().subPan[paneltag].GPan.Top + GParams.mouseY;
+                        GParams.YaxisConfig.Left = GT.CST().subPan[paneltag].GPan.Left + GParams.mouseX;
+                        if (GParams.YaxisConfig.Left + GParams.YaxisConfig.Width > pl + pw)
+                            GParams.YaxisConfig.Left = pl + pw - GParams.YaxisConfig.Width - 50;
+                        GParams.YaxisConfig.Show();
+                    }
+                }
+            }
+        }
+
+        public void setGraphColourPan(GTypes.PanelControl pan, int tag, GTypes.GRAPH_COLOUR col)
+        {
+            int i = 0;
+
+            if (pan.taglist == null)
+                return;
+
+            for (i = 0; i < pan.taglist.Length; i++)
+            {
+                if (pan.taglist[i].tag == tag)
+                {
+                    pan.taglist[i].colour = GParams.getPenColour(col);
+                    GParams.CM.setGraphMenuColourTick(pan.taglist[i].tag, pan.taglist[i].colour);
+                }
+            }
+        }
+        public void setGraphColour(int tag, GTypes.GRAPH_COLOUR col)
+        {
+            setGraphColourPan(GT.CST().mainPan, tag, col);          
+        }
+
+
+        public Pen getGraphColour(int tag)
+        {
+            int i = 0;
+
+            if (GT.CST().mainPan.taglist == null)
+            {
+                return Pens.Black;
+            }
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].tag == tag)
+                    return GT.CST().mainPan.taglist[i].colour;
+            }
+            return Pens.Black;
+        }
+
+        public Color getGraphRGBColour(int tag)
+        {
+            int i = 0;
+
+            if (GT.CST().mainPan.taglist == null)
+                return Color.Transparent;
+
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].tag == tag)
+                    return GT.CST().mainPan.taglist[i].colour.Color;
+            }
+            return Color.Transparent;
+        }
+
+
+        public void redrawGraphics()
+        {
+            if (!GParams.grSet)
+                return;
+            redrawAll();
+        }
+
+        public void setXScaleByXPos(GTypes.PanelControl pan, int x1, int x2)
+        {
+            int wid = 0;
+            int dx = 0;
+            int i = 0;
+            double scl = 0;
+            double xoff = 0;
+            double xscale = 0;
+            wid = pan.GPan.Width;
+
+            dx = x2 - x1;
+            scl = wid / Math.Abs(dx);
+
+            x1 = (int)(x1 / GParams.lastscaleX + (pan.Xoffset / GParams.lastscaleX));
+            pan.Xscale = pan.Xscale * scl;
+            pan.Xoffset = (x1 * scl * GParams.lastscaleX);
+            GParams.lastscaleX = scl * GParams.lastscaleX;
+
+            GT.CST().mainPan.needToSetScale = false;
+
+            if (GT.CST().subPan != null)
+            {
+                xoff = pan.Xoffset;
+                xscale = pan.Xscale;
+                GT.CST().mainPan.Xscale = xscale;
+                GT.CST().mainPan.Xoffset = xoff;
+
+                for (i = 0; i < GT.CST().subPan.Length; i++)
+                {
+                    GT.CST().subPan[i].needToSetScale = false;
+                    GT.CST().subPan[i].Xscale = xscale;
+                    GT.CST().subPan[i].Xoffset = xoff;
+                }
+            }
+        }
+
+       
+        private void IndexUpdate()
+        {
+            if (!GParams.canUpdateIndex)
+                return;
+
+            int cid = GT.grTabSelected;
+
+            int id = TabControl1.SelectedIndex;
+            if (id < 0)
+                return;
+
+            if (GParams.inBadTabList(id))
+            {
+                hideLegend();
+                TabControl1.SelectedIndex = cid;
+                redrawAll();
+                showLegend();
+                return;
+            }
+            if (GParams.ioExTab != null)
+            {
+                int i = 0;
+                bool found = false;
+                for (i = 0; i < GParams.ioExTab.Length; i++)
+                {
+                    if (id == GParams.ioExTab[i])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
+                {
+                    TooOpenButton.Enabled = false;
+                    ToolSaveButton.Enabled = false;
+                }
+                else
+                {
+                    TooOpenButton.Enabled = true;
+                    ToolSaveButton.Enabled = true;
+                }
+            }
+
+            hideLegend();
+            if (!GT.setSelectedTab(id))
+                return;
+            redrawAll();
+            showLegend();
+            if (GParams.TabChangedCallbackSet)
+                GParams.TabChangedCallback();
+
+        }
+
+        public void SetGraphYAxisTitle(int tag, string Ytit)
+        {
+            int i = 0;
+
+            if (GT.CST().Graphs == null)
+                return;
+
+            for (i = 0; i < GT.CST().Graphs.Length; i++)
+            {
+
+                if (GT.CST().Graphs[i].tagid == tag)
+                    GT.CST().Graphs[i].GYaxisTitle = Ytit;
+            }
+        }
+
+        public void setGraphAxisTitles(int tag, string Xtit, string Ytit)
+        {
+            int i = 0;
+
+            if (GT.CST().Graphs == null)
+                return;
+
+            for (i = 0; i < GT.CST().Graphs.Length; i++)
+            {
+                if (GT.CST().Graphs[i].tagid == tag)
+                {
+                    GT.CST().Graphs[i].GXaxisTitle = Xtit;
+                    GT.CST().Graphs[i].GYaxisTitle = Ytit;
+                }
+            }
+        }
+
+        public void setGraphSource(int tag, string title)
+        {
+            int i = 0;
+
+            if (GT.CST().Graphs == null)
+                return;
+
+            for (i = 0; i < GT.CST().Graphs.Length; i++)
+            {
+                if (GT.CST().Graphs[i].tagid == tag)
+                    GT.CST().Graphs[i].source = title;
+            }
+        }
+
+        public void clearLiveGraph(int tagid)
+        {
+            int i = 0;
+            int cnt = 0;
+            GTypes.GraphSurface GS;
+
+            if (GParams.liveGraphs == null)
+                return;
+
+            cnt = GParams.liveGraphs.Length;
+            for (i = 0; i < cnt; i++)
+            {
+                if (GParams.liveGraphs[i].graphid == tagid)
+                {
+                    GParams.liveGraphs[i].Lpts.Clear();
+                    GParams.liveGraphs[i].started = false;
+                    GParams.liveGraphs[i].currentPt = 0;
+
+                    GS = getGraphSurfaceFromtag(GParams.liveGraphs[i].graphid);
+                    if (GS != null)
+                        GS.ptCount = 0;
+                }
+
+            }
+        }
+
+        public void removeAllFileGraphs()
+        {
+            int i = 0;
+            int cnt = 0;
+
+            cnt = GT.CST().Graphs.Length;
+
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.CST().Graphs[i].source.Contains("File"))
+                {
+                    removeGraph(GT.CST().Graphs[i].tagid);
+                    removeAllFileGraphs();
+                    return;
+                }
+            }
+        }
+
+        public void removeAllAngles()
+        {
+            int i = 0;
+            int cnt = 0;
+            cnt = GT.CST().Graphs.Length;
+
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.CST().Graphs[i].objectTag.typeID == GTypes.GRAPH_MANIPULATION_TYPE.ANGLE_MARKER)
+                {
+                    removeGraph(GT.CST().Graphs[i].tagid);
+                    removeAllAngles();
+                    return;
+                }
+            }
+        }
+
+        public void clearAllBoundaryTypeData(GTypes.GRAPHTYPE gtyp)
+        {
+            int i = 0;
+            int cnt = 0;
+            if (GT.CST().Graphs == null)
+            {
+                return;
+            }
+            cnt = GT.CST().Graphs.Length;
+
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.CST().Graphs[i].gtype == gtyp)
+                {
+                    removeGraph(GT.CST().Graphs[i].tagid);
+                    clearAllBoundaryTypeData(gtyp);
+                    return;
+                }
+            }
+        }
+
+        public void clearAllLiveGraphs()
+        {
+            int i = 0;
+            int cnt = 0;
+            GTypes.GraphSurface GS;
+
+            if (GParams.liveGraphs == null)
+                return;
+
+            cnt = GParams.liveGraphs.Length;
+            for (i = 0; i < cnt; i++)
+            {
+                GParams.liveGraphs[i].Lpts.Clear();
+                GParams.liveGraphs[i].started = false;
+                GParams.liveGraphs[i].currentPt = 0;
+
+                GS = getGraphSurfaceFromtag(GParams.liveGraphs[i].graphid);
+                if (GS != null)
+                    GS.ptCount = 0;
+            }
+        }
+
+       
+        public void DontHLTab()
+        {
+            HLTab = false;
+        }
+
+        private void TabControl1_DrawItem(object sender, System.Windows.Forms.DrawItemEventArgs e)
+        {
+            Graphics g = e.Graphics;
+           
+            SolidBrush b = default(SolidBrush);
+            if (e.Index == TabControl1.SelectedIndex)
+            {
+                if (HLTab)
+                    b = new SolidBrush(Color.DarkGray);
+                else
+                    b = new SolidBrush(bTabColour);
+
+                g.FillRectangle(b, e.Bounds);
+                b.Color = Color.Black;
+
+                g.DrawString(this.TabControl1.TabPages[e.Index].Text, e.Font, b, e.Bounds.X + 2, e.Bounds.Y + 2);
+            }
+            else
+            {
+                b = new SolidBrush(bTabColour);
+                g.FillRectangle(b, e.Bounds);
+                b.Color = Color.Black;
+                g.DrawString(this.TabControl1.TabPages[e.Index].Text, e.Font, b, e.Bounds.X + 2, e.Bounds.Y + 2);
+            }
+            b.Dispose();
+           
+        }
+
+        public void clearGraphData()
+        {
+            int i = 0;
+            int j = 0;
+            int k = 0;
+            int n = 0;
+            int cnt = 0;
+            int cnt2 = 0;
+
+            clearAllLiveGraphs();
+
+            GParams.GM.resetGMem(theBaseID, theToolID);
+            if (GT.grTabs == null)
+                return;
+
+            cnt = GT.grTabs.Length;
+            for (i = 0; i < cnt; i++)
+            {
+                if (GT.grTabs[i].Graphs == null)
+                    continue;
+                cnt2 = GT.grTabs[i].Graphs.Length;
+                for (j = 0; j < cnt2; j++)
+                    GT.grTabs[i].Graphs[j].Dpts = null;
+
+                for (k = 0; k < GT.grTabs[i].mainPan.taglist.Length; k++)
+                {
+                    GT.grTabs[i].mainPan.taglist[k].scrPoints = null;
+                    GT.grTabs[i].mainPan.taglist[k].dispPoints = null;
+                }
+                GT.grTabs[i].mainPan.taglist = null;
+                if (GT.grTabs[i].subPan != null)
+                {
+                    for (n = 0; n < GT.grTabs[i].subPan.Length; n++)
+                    {
+                        for (k = 0; k < GT.grTabs[i].subPan[n].taglist.Length; k++)
+                        {
+                            GT.grTabs[i].subPan[n].taglist[k].scrPoints = null;
+                            GT.grTabs[i].subPan[n].taglist[k].dispPoints = null;
+                        }
+                        GT.grTabs[i].subPan[n].taglist = null;
+                    }
+                }
+                GT.grTabs[i].Graphs = null;
+            }
+            GT.grTabs = null;
+            GParams.LUpts = null;
+        }
+
+
+        public void resetGmem()
+        {
+            GParams.GM.resetGMem(theBaseID, theToolID);
+        }
+
+        public void initPanel()
+        {
+            GT.initPanel();
+        }
+
+        public void resetGraphData(int tid, FitMaths.DPoint[] pts)
+        {
+            GTypes.GraphSurface GS;
+            if (GT.CST().mainPan.taglist == null)
+                return;
+
+            GS = getGraphSurfaceFromtag(tid);
+            if (GS == null)
+                return;
+
+            GS.ptCount = 0;
+            updateGraph(tid, pts, pts.Length);
+        }
+
+        public int createLiveConnection(string title, string source, bool avaliableElsewhere)
+        {
+            int cnt = 0;
+            FitMaths.DPoint[] pts = new FitMaths.DPoint[1];
+
+            if (GParams.liveGraphs == null)
+                liveUpdate.Start();
+
+            pts[0].x = 0;
+            pts[0].y = 0;
+
+            if (GParams.liveGraphs == null)
+            {
+                cnt = 0;
+                GParams.liveGraphs = new GTypes.LiveData[1];
+            }
+            else
+            {
+                cnt = GParams.liveGraphs.Length;
+                Array.Resize(ref GParams.liveGraphs, cnt + 1);
+            }
+
+            GParams.liveGraphs[cnt].Lpts = new ArrayList();
+
+            GParams.ResetPointCount = true;
+            GParams.liveGraphs[cnt].graphid = GPG.addNewGraph(pts, title, source, GTypes.GRAPHTYPE.LIVE, null, avaliableElsewhere);
+            GParams.ResetPointCount = false;
+            GParams.liveGraphs[cnt].tabid = GT.getgrTabSelected();
+            GParams.liveGraphs[cnt].liveid = cnt;
+            GParams.liveGraphs[cnt].started = false;
+            GParams.liveGraphs[cnt].currentPt = 0;
+
+            return cnt;
+        }
+
+        public int getLiveGraphID(int liveID)
+        {
+            return GParams.liveGraphs[liveID].graphid;
+        }
+
+
+        public void liveFullClear(int id)
+        {
+            if (GParams.liveGraphs == null)
+                return;
+            if (id < 0 || id >= GParams.liveGraphs.Length)
+                return;
+            GParams.liveGraphs[id].Lpts.Clear();
+            GParams.liveGraphs[id].started = false;
+            GParams.liveGraphs[id].currentPt = 0;
+        }
+
+
+        public void addLivedata(int id, double x, double y, bool startPt, bool clearit)
+        {
+            int cnt = 0;
+            int i = 0;        
+            int counter = 0;
+            int starti = 0;
+            FitMaths.DPoint dp;
+
+            if (GParams.liveGraphs == null)
+                return;
+
+            if (id < 0 || id >= GParams.liveGraphs.Length)
+                return;
+
+            if (GParams.inLiveUpdate)
+            {
+                if (GParams.lucnt > 15)
+                    GParams.lucnt = 0;
+                else
+                {
+                    ++GParams.lucnt;
+                    return;
+                }
+            }
+
+            GParams.inLiveUpdate = true;
+            try
+            {
+                if (GParams.liveGraphs[id].started)
+                {
+                    cnt = GParams.liveGraphs[id].Lpts.Count;
+                    dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[cnt-1];
+
+                    if (x <= dp.x && clearit)
+                    {
+                        if (GParams.clearListCount <= 0)
+                        {
+                            if (startPt)
+                            {
+                                GParams.liveGraphs[id].Lpts.Clear();
+                                GParams.liveGraphs[id].currentPt = 0;
+                            }
+                            dp.x = (float)x;
+                            dp.y = (float)y;
+                            dp.startPt = startPt;
+
+                            GParams.liveGraphs[id].Lpts.Add(dp);
+                            GParams.inLiveUpdate = false;
+                            return;
+                        }
+                        counter = 0;
+                        starti = 0;
+                        for (i = cnt-1; i >= 0; --i)
+                        {
+                            dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[i];
+                            if (dp.startPt)
+                            {
+                                counter += 1;
+                                if (counter >= GParams.clearListCount)
+                                {
+                                    starti = i;
+                                    break; 
+                                }
+                            }
+                        }
+                        if (starti != 0)
+                        {
+                            GParams.tempArray.Clear();
+                            for (i = starti; i <= cnt; i++)
+                            {
+                                dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[i];
+                                GParams.tempArray.Add(dp);
+                            }
+                            GParams.liveGraphs[id].Lpts.Clear();
+                            for (i = 0; i < GParams.tempArray.Count; i++)
+                            {
+                                dp = (FitMaths.DPoint)GParams.tempArray[i];
+                                GParams.liveGraphs[id].Lpts.Add(dp);
+                            }
+                            GParams.liveGraphs[id].currentPt = 0;
+                        }
+
+                    }
+                }
+                else
+                    GParams.liveGraphs[id].started = true;
+
+                dp.x = (float)x;
+                dp.y = (float)y;
+                dp.startPt = startPt;
+                GParams.liveGraphs[id].Lpts.Add(dp);
+
+            }
+            catch (Exception ex)
+            {
+                GParams.inLiveUpdate = false;
+            }
+            GParams.inLiveUpdate = false;
+        }
+
+
+        public void addCyclicLivedata(int id, double[] x, double[] y)
+        {
+            int cnt = 0;
+            int i = 0;
+            int counter = 0;
+            int starti = 0;
+            FitMaths.DPoint dp;
+
+            if (GParams.liveGraphs == null)
+                return;
+            if (id < 0 || id >= GParams.liveGraphs.Length)
+                return;
+
+            if (GParams.inLiveUpdate)
+            {
+                if (GParams.lucnt > 15)
+                    GParams.lucnt = 0;
+                else
+                {
+                    ++GParams.lucnt;
+                    return;
+                }
+            }
+
+            GParams.inLiveUpdate = true;
+            if (!GParams.liveGraphs[id].started)
+            {
+                AddLiveArray(id, x, y);
+                GParams.liveGraphs[id].started = true;
+                GParams.inLiveUpdate = false;
+                return;
+            }
+
+
+            if (GParams.clearListCount <= 0)
+            {
+                GParams.liveGraphs[id].Lpts.Clear();
+                GParams.liveGraphs[id].currentPt = 0;
+                AddLiveArray(id, x, y);
+                GParams.inLiveUpdate = false;
+                return;
+            }
+
+            cnt = GParams.liveGraphs[id].Lpts.Count - 1;
+            dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[cnt];
+
+            counter = 0;
+            starti = 0;
+            for (i = cnt-1; i >= 0; --i)
+            {
+                dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[i];
+                if (dp.startPt)
+                {
+                    counter += 1;
+                    if (counter >= GParams.clearListCount)
+                    {
+                        starti = i;
+                        break;
+                    }
+                }
+            }
+            if (starti != 0)
+            {
+                GParams.tempArray.Clear();
+                for (i = starti; i < cnt; i++)
+                {
+                    dp = (FitMaths.DPoint)GParams.liveGraphs[id].Lpts[i];
+                    GParams.tempArray.Add(dp);
+                }
+                GParams.liveGraphs[id].Lpts.Clear();
+                for (i = 0; i < GParams.tempArray.Count; i++)
+                {
+                    dp = (FitMaths.DPoint)GParams.tempArray[i];
+                    GParams.liveGraphs[id].Lpts.Add(dp);
+                }
+                GParams.liveGraphs[id].currentPt = 0;
+            }
+
+            AddLiveArray(id, x, y);
+            GParams.inLiveUpdate = false;
+
+        }
+
+        private void AddLiveArray(int id, double[] x, double[] y)
+        {
+            int i = 0;
+            FitMaths.DPoint dp = default(FitMaths.DPoint);
+            bool startPt = true;
+            for (i = 0; i < x.Length; i++)
+            {
+                dp.x = (float)x[i];
+                dp.y = (float)y[i];
+                dp.startPt = startPt;
+                GParams.liveGraphs[id].Lpts.Add(dp);
+                startPt = false;
+            }
+
+        }
+
+        public void SetRealGraphColour(int tag, Color col)
+        {
+            int i = 0;
+            Pen p = new Pen(Color.Blue);
+            p.Color = col;
+
+            if (GT.CST().mainPan.taglist == null)
+                return;
+
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].tag == tag)
+                    GT.CST().mainPan.taglist[i].colour = p;
+            }
+        }
+
+        public void setInitVisible(bool setit)
+        {
+            if (GParams.canSetVisible)
+                GParams.initVisible = setit;
+        }
+
+        public void setInitVisible2(bool setit, bool can)
+        {
+            GParams.canSetVisible = can;
+            GParams.initVisible = setit;
+        }
+
+        public int getTagPosFromGraphID(int tagid)
+        {
+            int i = 0;
+            if (GT.CST().mainPan.taglist == null)
+                return -1;
+
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].tag == tagid)
+                    return i;
+            }
+            return 0;
+        }
+
+        public int getTagPosFromGraphID(GTypes.GraphControl[] taglist, int tagid)
+        {
+            int i = 0;
+            if (taglist == null)
+                return -1;
+
+            for (i = 0; i < taglist.Length; i++)
+            {
+                if (taglist[i].tag == tagid)
+                    return i;
+            }
+            return 0;
+        }
+
+        public int getTagFromGraphPos(int id)
+        {
+
+            if (id < 0)
+                return -1;
+
+            if (id >= GT.CST().Graphs.Length)
+                return -1;
+
+            return GT.CST().Graphs[id].tagid;
+
+        }
+
+        public void clearPanel(GTypes.PanelControl pan)
+        {
+            pan.grSurface.Clear(pan.GPan.BackColor);
+            pan.panSurface.Clear(pan.GPan.BackColor);
+            GR.DrawGrid(pan);
+            GParams.GB.FillBoundaries(pan);
+            pan.panSurface.DrawImage(pan.drawingImage, pan.Xpan, pan.Ypan);
+        }
+
+        public void addHorizontalFill(GTypes.PanelControl pan, double y1, double y2, HatchBrush br)
+        {
+            int pos = 0;
+            if (pan.horizontalBorder == null)
+            {
+                pan.horizontalBorder = new GTypes.HBorder[1];    
+                pos = 0;
+            }
+            else
+            {
+                pos = pan.horizontalBorder.Length;
+                Array.Resize(ref pan.horizontalBorder, pos + 1);
+
+            }
+            pan.horizontalBorder[pos].y1 = y1;
+            pan.horizontalBorder[pos].y2 = y2;
+            pan.horizontalBorder[pos].scry1 = (int)y1;
+            pan.horizontalBorder[pos].scry2 = (int)y2;
+            pan.horizontalBorder[pos].br = br;
+
+        }
+
+        public int GetHeight()
+        {
+            return GT.CST().mainPan.GPan.Height;
+        }
+
+        public int GetWidth()
+        {
+            return GT.CST().mainPan.GPan.Width;
+        }
+
+        public int forceSelectedTab(int id)
+        {
+            int cid = GT.grTabSelected;
+            GT.setSelectedTab(GParams.liveGraphs[id].tabid);
+            return cid;
+        }
+
+        public int getTabId(int id)
+        {
+            return GParams.liveGraphs[id].tabid;
+        }
+
+        public void resetSelectedTab(int id)
+        {
+            GT.setSelectedTab(id);
+        }
+
+        public void setTabName(int id, string title)
+        {
+            if (id < 0 || id >= GT.grTabs.Length)
+                return;
+
+            GT.grTabs[id].page.Text = title;
+        }
+
+        public void setAllBoundariesVisible()
+        {
+            GTypes.GraphSurface GS;
+            int i = 0;
+            int j = 0;
+            int tag = 0;
+            for (i = 0; i < GT.CST().mainPan.taglist.Length; i++)
+            {
+                if (GT.CST().mainPan.taglist[i].isExternal)
+                    GS = getExternalGraphSurface(GT.CST().mainPan.taglist[i]);
+                else
+                    GS = getGraphSurfaceFromtag(GT.CST().mainPan.taglist[i].tag);
+
+                if (GS == null)
+                    continue;
+                if (GS.gtype != GTypes.GRAPHTYPE.BOUNDARY)
+                    continue;
+
+                if (GT.CST().subPan != null)
+                {
+                    for (j = 0; j < GT.CST().subPan.Length; j++)
+                    {
+                        tag = GT.CST().mainPan.taglist[i].tag;
+                        GParams.CM.setAsubtag(ref GT.CST().subPan[j], GT.CST().mainPan.taglist[i]);
+                        GParams.CM.resetAsubtag(ref GT.CST().subPan[j], tag, true);
+                    }
+                }
+
+            }
+        }
+
+        public void setUserlabel1Visible(bool vis)
+        {
+            UserLabel1.Visible = vis;
+        }
+
+        public void setUserlabel1(string s)
+        {
+            UserLabel1.Text = s;
+            GParams.USERLab1 = s;
+        }
+
+        public void forceAlternateYaxis()
+        {
+            UseAlternateZeroYAxisToolStripMenuItem.Checked = true;
+            GParams.OriginalZeroAxis = false;
+        }
+
+        public bool ShowIPGraphName()
+        {
+            return GParams.shIPGName;
+        }
+
+        public void ShowIPGraphName(bool sh)
+        {
+            GParams.shIPGName = sh;
+        }
+
+        public double getVideoTime()
+        {
+            if (GT.CST().VP == null)
+            {
+                return 0.0;
+            }
+            return Convert.ToDouble(GT.CST().VP.CurrentTime.Text);
+        }
+        public void updateVideo()
+        {
+            if (GT.CST().VP == null)
+            {
+                return;
+            }
+            GT.CST().VP.paramUpdate();
+        }
+
+        public FitMaths.DPoint[] getGraphPointsFromTag(int tid, ref int cnt)
+        {
+            GTypes.GraphSurface GS;
+
+
+            GS = getGraphSurfaceFromtag(tid);
+            if (GS == null)
+                return null;
+
+            cnt = GS.ptCount;
+            return GS.Dpts;
+        }
+
+
+    }
+}
